@@ -1,0 +1,248 @@
+#include <PWMServo.h>
+#define IN1 7 //define pins
+#define IN2 8  //define pins
+#define ENA 5       // Pin ENA
+
+#define FRONT 54.1       // Angle of the wheels when facing the front
+int SHARP_RIGHT=FRONT+25;   // Angle of the wheels when performing a sharp turn to the right
+int SHARP_LEFT=FRONT-25;   // Angle of the wheels when performing a sharp turn to the left
+int  RIGHT=FRONT+5;   // Angle of the wheels when performing a soft turn to the right
+int  LEFT=FRONT-5;    // Angle of the wheels when performing a soft turn to the left
+
+#define SENSOR_FRONT 73   //Initial position for the ultrasonic sensor
+int SENSOR_LEFT=SENSOR_FRONT+35;    //Angle of the ultrasonic sensor while facing the left diagonal
+int SENSOR_RIGHT=SENSOR_FRONT-35;   //Angle of the ultrasonic sensor while facing the right diagonal
+int SENSOR_FAR_LEFT=SENSOR_FRONT+80;      //Angle of the ultrasonic sensor while facing completely to the left
+int SENSOR_FAR_RIGHT=SENSOR_FRONT-80;     //Angle of the ultrasonic sensor while facing completely to the left
+
+
+#define SPEED         200   //Value of the regular speed
+#define FAST_SPEED    225   //Highest Value for the speed
+#define SERVO_STEER   9  // directional servo connected to the D9
+#define SERVO_SENSOR  10  // directional servo connected to the D10
+
+#define Echo_PIN    2 // Echo pin connected to the ultrasonic sensor D11
+#define Trig_PIN    3  // Echo pin connected to the ultrasonic sensor D11
+
+PWMServo head;  //referring to the head of the robot
+PWMServo head_steer;  //referring to the steer on the robot's head
+int leftscanval, centerscanval, rightscanval, ldiagonalscanval, rdiagonalscanval; //declaring the possible directions for the robot
+const int distancelimit = 70; // distance limit for objects in front of the robot        
+const int sidedistancelimit = 30; // distance limit for objects at the side of the robot
+int distance; //declaring the variable of distance
+int numcycles = 0;  // Variable for the amount of cycles the servo does
+const int forwardtime = 1000; // Time the robot spends advancing
+const int turntime = 1975; // Time the robot spends doing harsh turns
+const int backtime = 500; // Time the robot takes to go back
+const int softurn = 2000; // Times the robot spends doing a soft turn
+//each of the times is expressed in miliseconds
+#define LPT 2 // amount of cycles to achieve per action of the head steer
+
+void  go_Back(int speed)  // Function for going back
+{
+  digitalWrite(IN1, HIGH);  //Pin status
+  digitalWrite(IN2,LOW);    //Pin status
+  analogWrite(ENA,speed);   //Gives an analogue value for the speed
+}
+ 
+void go_Advance(int speed)  // Adelante
+{
+  digitalWrite(IN1, LOW);   //Pin status
+  digitalWrite(IN2,HIGH);   //Pin status
+  analogWrite(ENA,speed); //Gives an analogue value for the velocity 
+}
+ 
+void turn(int angle)    //function for turning the head steer
+{
+  head_steer.write(angle);  //declaration of the head steer angle
+}
+ 
+void stop_Stop()    // Pin status when stopping
+{
+  digitalWrite(IN1, LOW);     //Pin status
+  digitalWrite(IN2,LOW);      //Pin status
+  analogWrite(ENA,0);         //Value for the speed of the robot
+}
+
+void setup() {  //General status of the pins in normal conditions
+ pinMode(ENA, OUTPUT);  //Pin status
+ pinMode(IN1, OUTPUT);  //Pin status
+ pinMode(IN2, OUTPUT);  //Pin status
+ pinMode(Trig_PIN, OUTPUT);   //Trig Pin status
+ pinMode(Echo_PIN,INPUT);   //Echo Pin status
+
+ head_steer.attach(SERVO_STEER);    //refers to the steer servo
+ head.attach(SERVO_SENSOR);     //refers to the sensor servo
+ head.write(90);    //value for the head of the robot
+ turn(FRONT); //turn the robot to the front
+ stop_Stop();  //stop the robot
+ delay(2000);   //delay of the action
+
+ Serial.begin(9600);
+ 
+}
+int watch(){    //declaring the variable for the ultrasonic sensor
+  long echo_distance; //declaring that the distance may be represented in many decimals
+  digitalWrite(Trig_PIN,LOW); //Initial status of the trig pin
+  delayMicroseconds(5);      //Action's delay                                                                        
+  digitalWrite(Trig_PIN,HIGH);    //The trig pin emits the signal
+  delayMicroseconds(15);    //Delay of the action
+  digitalWrite(Trig_PIN,LOW);   //Turns of the signal
+  echo_distance=pulseIn(Echo_PIN,HIGH); //Relate the distane with the Echo pulse
+  echo_distance=echo_distance*0.01657; // Equation for calculating the distance of ivjects
+  Serial.println((int)echo_distance);
+  return round(echo_distance); //return to the distance part of this sectiob
+}
+// Measures each of the orientations for the head steer related to the variables that were declared before
+String watchsurrounding(){  //information for the distance
+/*  obstacle_status is a binary system with 5 variables that represent different orientations
+ /*   for example, if there is a B00011, then there would be objects at the diagonal right and right
+  *    
+  */
+int obstacle_status =B100000; //obstacle_status variable declared
+  centerscanval = watch(); //use the watch variable
+  if(centerscanval<distancelimit){ //if the distance in the center less than the distance limit, stop sensing that direction
+    stop_Stop(); //stop the sensor
+    
+    obstacle_status  =obstacle_status | B100;
+    }
+  head.write(SENSOR_LEFT); //name for the sensor that is being modified
+  delay(100);
+  ldiagonalscanval = watch(); //use the watch variable
+  if(ldiagonalscanval<distancelimit){   //if the distance in the center less than the distance limit, stop sensing that direction 
+    stop_Stop();  //stop the sensor
+    
+     obstacle_status  =obstacle_status | B1000;   //declares which number of the binary system belongs to the chosen direction
+    }
+  head.write(SENSOR_FAR_LEFT); //name for the sensor that is being modified
+  delay(300);
+  leftscanval = watch();    //use the watch variable
+  if(leftscanval<sidedistancelimit){    //if the distance in the center less than the distance limit, stop sensing that direction
+    stop_Stop();  //stop the sensor
+    
+     obstacle_status  =obstacle_status | B10000;    //declares which number of the binary system belongs to the chosen direction
+    }
+
+  head.write(SENSOR_FRONT);//name for the sensor that is being modified
+  delay(100);
+  centerscanval = watch();    //use the watch variable
+  if(centerscanval<distancelimit){    //if the distance in the center less than the distance limit, stop sensing that direction
+    stop_Stop();    //stop the sensor
+    
+    obstacle_status  =obstacle_status | B100;   //declares which number of the binary system belongs to the chosen direction
+    }
+  head.write(SENSOR_RIGHT);   //name for the sensor that is being modified
+  delay(100);
+  rdiagonalscanval = watch();   //use the watch variable
+  if(rdiagonalscanval<distancelimit){   //if the distance in the center less than the distance limit, stop sensing that direction
+    stop_Stop();    //stop the sensor
+    
+    obstacle_status  =obstacle_status | B10; //declares which number of the binary system belongs to the chosen direction
+    }
+  head.write(SENSOR_FAR_RIGHT);   //name for the sensor that is being modified
+  delay(100);
+  rightscanval = watch();   //use the watch variable
+  if(rightscanval<sidedistancelimit){   //if the distance in the center less than the distance limit, stop sensing that direction
+    stop_Stop();    //stop the sensor
+  
+    obstacle_status  =obstacle_status | 1; //declares which number of the binary system belongs to the chosen direction
+    }
+  head.write(SENSOR_FRONT); // Termina de mirar alrededor (mira hacia adelante nuevamente)
+  delay(300);
+   String obstacle_str= String(obstacle_status,BIN); //save the recolected data 
+  obstacle_str= obstacle_str.substring(1,6); //identify the digits of the data
+  
+  return obstacle_str; // interpret the data to represent which directions the robot detected
+}
+
+void auto_avoidance(){  //function for avoiding objects
+
+  ++numcycles; //use of the amount of cycles
+  if(numcycles>=LPT){ //if the amount of cycles is equal to the LPT, the sensor will stop
+     stop_Stop();
+    String obstacle_sign=watchsurrounding(); // show the 5 digits
+      Serial.print("begin str="); //start to analyse the data
+        Serial.println(obstacle_sign);
+                    if( obstacle_sign=="00000"){ //if there is noting in the front, advance
+     Serial.println("ADELANTE");
+     turn(FRONT);
+     go_Advance(SPEED);
+ 
+    }
+ 
+   
+    else if( obstacle_sign=="00001" ||obstacle_sign=="00010" || obstacle_sign=="00011" || obstacle_sign=="00101" ){
+    Serial.println("girar a la izquierda");
+ 
+
+          turn(LEFT);
+     go_Advance(FAST_SPEED);
+      delay(forwardtime);
+      stop_Stop();
+      turn(FRONT);
+      //If there is an obstacle only at the right of the robot, it will turn softly to the left
+    }
+    
+        else if( obstacle_sign=="00111" ||obstacle_sign=="01111"){
+    Serial.println("girar a la izquierda");
+go_Back(SPEED);
+delay(backtime);
+
+          turn(SHARP_LEFT);
+     go_Advance(SPEED);
+      delay(turntime);
+      stop_Stop();
+      turn(FRONT);
+      //If there is something at the right and front of the robot, it will perform a sharp turn to the left
+    }
+     else if(  obstacle_sign=="11100" || obstacle_sign=="11110" ){
+     Serial.println("girar a la derecha");
+   
+    go_Back(SPEED);
+delay(backtime);
+
+           turn(SHARP_RIGHT);
+     go_Advance(SPEED);
+      delay(turntime);
+      stop_Stop();
+      turn(FRONT);
+      //If there is something in front and left of the robot, it will do a sharp turn to the right
+    } 
+           else if( obstacle_sign=="10000" ||obstacle_sign=="01000" || obstacle_sign=="11000" || obstacle_sign=="10100" ){
+    Serial.println("girar a la izquierda");
+
+          turn(RIGHT);
+     go_Advance(FAST_SPEED);
+      delay(forwardtime);
+      stop_Stop();
+      turn(FRONT);
+      //If there is something in the left, turn to the right softly
+    }
+    
+   else if ( obstacle_sign=="11111" ||obstacle_sign=="01110" ||obstacle_sign=="00100" ||obstacle_sign=="10101" ||obstacle_sign=="11101" ||obstacle_sign=="10111") {
+    Serial.println("atras");
+    
+      stop_Stop();
+      turn (RIGHT);
+      go_Back(FAST_SPEED);
+      delay(softurn);
+      turn (FRONT);
+      //In any of these cases, the robot will cease to move
+   }
+else
+    Serial.println("atras");
+
+      go_Advance(SPEED);
+      delay(forwardtime);
+      //Go to the front after each function
+    }
+  
+}
+  
+//else  Serial.println(numcycles);
+
+
+void loop() {  //loop declaration
+ auto_avoidance(); //declaration of the auto_avoidance variable in the loop function
+ 
+}
