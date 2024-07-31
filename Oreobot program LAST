@@ -1,0 +1,173 @@
+#include <PWMServo.h>
+
+// Motor pins definition
+#define IN1 7
+#define IN2 8
+#define ENA 5
+#define ENB 6
+
+//Definitions of the angles
+#define FRONT 59.75
+float SHARP_RIGHT = FRONT + 52.5;
+float SHARP_LEFT = FRONT - 47.5;
+int RIGHT = FRONT + 20;
+int LEFT = FRONT + 2.5;
+
+//Definition of the distance variables
+int echo_distancef;
+int echo_distancer;
+int echo_distancel;
+
+//Definition of the steer and speed
+#define SPEED 185
+#define FAST_SPEED 255
+#define SERVO_STEER 9
+#define SERVO_SENSOR 10
+
+//Definition of the ultrasonic sensors
+#define Echo_PINf 2
+#define Trig_PINf 3
+#define Echo_PINr 13
+#define Trig_PINr 12
+#define Echo_PINl 6
+#define Trig_PINl 7
+
+//Definition of the head steer
+PWMServo head; 
+PWMServo head_steer;
+
+//Distances and times
+const int distancelimit = 40;
+const int sidedistancelimit = 30;
+int distance;
+int numcycles = 0;
+const int forwardtime = 700;
+const int turntime = 750;
+const int backtime = 550;
+const int softurn = 1000;
+
+//Function for going back
+void go_Back(int speed) {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, speed);
+}
+
+//Function for going front
+void go_Advance(int speed) {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  analogWrite(ENA, speed);
+ 
+}
+
+//Function for making turns
+void turn(int angle) {
+  head_steer.write(angle);
+}
+
+//Function for stopping
+void stop_Stop() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, 0);
+
+}
+
+//Setting up all of the pins
+void setup() {
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(Trig_PINf, OUTPUT);
+  pinMode(Echo_PINf, INPUT);
+  pinMode(Trig_PINr, OUTPUT);
+  pinMode(Echo_PINr, INPUT);
+  pinMode(Trig_PINl, OUTPUT);
+  pinMode(Echo_PINl, INPUT);
+
+
+//initial status
+  head_steer.attach(SERVO_STEER);
+  turn(FRONT);
+  stop_Stop();
+
+  delay(2000);
+  
+  Serial.begin(9600);
+
+
+}
+
+//Defining how to get the distances
+long getDistance(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(5);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long duration = pulseIn(echoPin, HIGH);
+  long distance = duration * 0.034 / 2;
+  return distance;
+}
+
+//Defining the function for getting the distances
+void watch() {
+  echo_distancef = getDistance(Trig_PINf, Echo_PINf);
+  echo_distancer = getDistance(Trig_PINr, Echo_PINr);
+  echo_distancel = getDistance(Trig_PINl, Echo_PINl);
+
+  Serial.print("Front: ");
+  Serial.print(echo_distancef);
+  Serial.print(" cm, Right: ");
+  Serial.print(echo_distancer);
+  Serial.print(" cm, Left: ");
+  Serial.println(echo_distancel);
+}
+
+
+//The main function for avoiding the walls
+void auto_avoidance() {
+  watch();
+  
+  if (echo_distancef > 45 && echo_distancer >= 40  && echo_distancel >= 40 ) {
+    Serial.println("ADELANTE");
+    turn(FRONT);
+    go_Advance(FAST_SPEED);
+  } else if (echo_distancef < 45 && echo_distancel > echo_distancer) {  
+    Serial.println("Girar a la izquierda");
+    go_Back(SPEED);
+    delay(backtime);
+    turn(SHARP_LEFT);
+    go_Advance(FAST_SPEED);
+    delay(turntime);
+    stop_Stop();
+    turn(RIGHT);
+  } else if (echo_distancef < 45 && echo_distancel < echo_distancer) {
+    Serial.println("Girar a la derecha");
+    go_Back(SPEED);
+    delay(turntime);
+    turn(SHARP_RIGHT);
+    go_Advance(FAST_SPEED);
+    delay(turntime);
+    turn(LEFT);
+  } else if (echo_distancef < 45) {
+    Serial.println("Atras");
+    stop_Stop();
+    go_Back(SPEED);
+    delay(backtime);
+    turn(SHARP_LEFT);
+    go_Advance(FAST_SPEED);
+    delay (turntime);
+    turn(RIGHT);
+    
+  } else {
+    Serial.println("ADELANTE");
+    go_Advance(SPEED);
+    delay(forwardtime);
+  }
+}
+//The final loop to do all the previous setup
+void loop() {
+  auto_avoidance();
+}
