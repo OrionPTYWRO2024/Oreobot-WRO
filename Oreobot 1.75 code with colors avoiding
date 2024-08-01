@@ -1,0 +1,231 @@
+//Disclaimer: f in the variables refer to frontal, l in the variables refer to left, and the r in the variables refer to right
+
+#include <PWMServo.h>
+
+// Motor pins definition
+#define IN1 7
+#define IN2 8
+#define ENA 5
+
+//Definitions of the angles. First is the default angle, then the ones for turns, then the ones for realigning the robot and finally the ones for avoiding the obstacles
+#define FRONT 60.5
+float SHARP_RIGHT = FRONT + 52.5;
+float SHARP_LEFT = FRONT - 47.5;
+float RIGHT = FRONT + 20;
+float LEFT = FRONT + 2.5;
+float COLOR_RIGHT = FRONT + 37.5;
+float COLOR_LEFT = FRONT + 27.5;
+
+
+//Definition of the distance variables, front, right and left
+int echo_distancef;
+int echo_distancer;
+int echo_distancel;
+
+//Definition of the steer and speed
+#define SPEED 255
+#define FAST_SPEED 255
+#define SERVO_STEER 9
+#define SERVO_SENSOR 10
+
+//Definition of the ultrasonic sensors
+#define Echo_PINf 2
+#define Trig_PINf 3
+#define Echo_PINr 13
+#define Trig_PINr 12
+#define Echo_PINl 6
+#define Trig_PINl 7
+
+// Color sensor pins
+#define S0_1 0
+#define S1_1 1
+#define S2_1 4
+#define S3_1 5
+#define OUT1 8
+
+int red1 = 0, blue1 = 0, green1 = 0; // RGB values for the color sensor
+
+//Definition of the head steer
+PWMServo head; 
+PWMServo head_steer;
+
+//Declaring the distance variable and the times we are using for each action
+int distance;
+int numcycles = 0;
+const int forwardtime = 700;
+const int turntime = 750;
+const int backtime = 550;
+const int softurn = 1000;
+
+//Function for going back
+void go_Back(int speed) {
+  digitalWrite(IN1, HIGH);    //The IN1 moves the motor to the back
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, speed);    //This one is the energy source
+}
+
+//Function for going front
+void go_Advance(int speed) {
+  digitalWrite(IN1, LOW);    
+  digitalWrite(IN2, HIGH);    //IN2 makes it go to the front
+  analogWrite(ENA, speed);    //Energy source
+ 
+}
+
+//Function for making turns
+void turn(int angle) {
+  head_steer.write(angle);    //Here, the PWM servo reads uses the values found in the angles declared on the upper part of the code to turn.
+}
+
+//Function for stopping
+void stop_Stop() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);    //When everything is turned off, the motor won't move
+  analogWrite(ENA, 0);
+
+}
+//This function is for the color sensor to read colors, its a combination between the energy output and color pulsations
+void GetColors() {
+  digitalWrite(S2_1, LOW);
+  digitalWrite(S3_1, LOW);    //The color pins begin on LOW
+  red1 = pulseIn(OUT1, digitalRead(OUT1) == HIGH ? LOW : HIGH);
+  delay(20);
+  digitalWrite(S3_1, HIGH);
+  blue1 = pulseIn(OUT1, digitalRead(OUT1) == HIGH ? LOW : HIGH);      //In summary, each of the three colors throws out a signal and recieves the data related to the colors
+  delay(20);
+  digitalWrite(S2_1, HIGH);
+  green1 = pulseIn(OUT1, digitalRead(OUT1) == HIGH ? LOW : HIGH);
+  delay(20);
+}
+
+//Setting up all of the pins
+void setup() {
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);                //The output ones passes the information from the Motor Shield to the robot
+  pinMode(Trig_PINf, OUTPUT);
+  pinMode(Echo_PINf, INPUT);
+  pinMode(Trig_PINr, OUTPUT);        //The input ones mean that the Motor Shield is recieving information from the sensors.
+  pinMode(Echo_PINr, INPUT);
+  pinMode(Trig_PINl, OUTPUT);
+  pinMode(Echo_PINl, INPUT);
+
+
+//initial status
+  head_steer.attach(SERVO_STEER);
+  turn(FRONT);  //Initial positon for the wheels, its weird because the frontal position is not 0º, but 60, but it's just because of the PWM Servo
+  stop_Stop();
+
+  delay(2000);
+  
+  Serial.begin(9600);
+
+  The pinmode for the color sensors
+  pinMode(S0_1, OUTPUT);
+  pinMode(S1_1, OUTPUT);    //The outputs refer to the S0 and S1 getting getting energy from the Motor Shield
+  pinMode(S2_1, OUTPUT);
+  pinMode(S3_1, OUTPUT);    //These outputs refer to the S2 and S3, throwing the color signals
+  pinMode(OUT1, INPUT);    //This INPUT refers to the color sensor giving the information collected to the Motor Shield
+
+The status of the color sensor's energy output, using both HIGH's means the energy is at 100%
+  digitalWrite(S0_1, HIGH);
+  digitalWrite(S1_1, HIGH);
+
+
+}
+
+//Defining how to get the distances
+long getDistance(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(5);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);            We use this function to declare the overall functioning of the ultrasonic sensors, it switches betweem LOW and HIGH, meaning its making constant pulsations
+  digitalWrite(trigPin, LOW);
+  long duration = pulseIn(echoPin, HIGH);
+  long distance = duration * 0.034 / 2;
+  return distance;
+}
+
+//Defining the function for getting the distances
+void watch() {
+  echo_distancef = getDistance(Trig_PINf, Echo_PINf);
+  echo_distancer = getDistance(Trig_PINr, Echo_PINr);    
+  echo_distancel = getDistance(Trig_PINl, Echo_PINl);
+
+  Serial.print("Front: ");
+  Serial.print(echo_distancef);
+  Serial.print(" cm, Right: ");
+  Serial.print(echo_distancer);    //Delcaring the signals of the data we are receiving from the ultrasonic sensors
+  Serial.print(" cm, Left: ");
+  Serial.println(echo_distancel);
+}
+
+
+//The main function for avoiding the walls
+void auto_avoidance() {
+  watch(); //including the ultrasonic sensors function
+  GetColors(); //including the color sensors function
+
+ if (echo_distancef <= 20 ) {  //This if is the one that begins the whole autoavoidance function and the following ifs and elses are under it
+
+      if (green1 < red1 ) {  //The if for turning left when seeing green
+    Serial.println("Green detected, turning left.");
+     go_Back(SPEED);    //The robot goes back to get some space before turning
+    delay(backtime);
+    turn(COLOR_LEFT);
+    go_Advance(FAST_SPEED);
+    delay(450);   //This first block is to softly turn to the left while seeing the green object to avoid it
+    turn(COLOR_RIGHT);
+    go_Advance(FAST_SPEED);
+    delay(450);
+    stop_Stop();    //Finally, it softly turns to the right to realign itself
+    turn(FRONT);
+      }
+    else if  (red1 < green1 ) {    //The function for turning right when seeing red
+    Serial.println("Red detected, turning right");
+     go_Back(SPEED);
+    delay(backtime);    //The robot goes back to get some space before turning
+     turn(COLOR_RIGHT);
+    go_Advance(FAST_SPEED);
+    delay(450);        //This first block is to softly turn to the rihgt while seeing the green object to avoid it
+    turn(COLOR_LEFT);
+    go_Advance(FAST_SPEED);
+    delay(450);
+    stop_Stop();       //Finally, it softly turns to the left to realign itself
+    turn(FRONT);    
+  }
+
+  
+  else if (  echo_distancer >= 80) {  //This one is for turning right 
+     Serial.println("Girar a la derecha");  
+    go_Back(SPEED);    //Goes back to get distance from the wall
+    delay(turntime);
+    turn(SHARP_RIGHT);  //Turns the steer
+    go_Advance(FAST_SPEED);    //Advances
+    delay(turntime);
+    turn(LEFT);  //Realigns itself to the front
+
+   
+  }   
+  else if (  echo_distancel >= 80) {  //These one is for turning left
+     Serial.println("Girar a la izquierda");
+    go_Back(SPEED);    //goes back to get some space
+    delay(turntime);  
+    turn(SHARP_LEFT); //Turns to the left sharply to take the turn
+    go_Advance(FAST_SPEED);
+    delay(turntime);
+    turn(RIGHT);  //Realigns itself
+
+    //In the last 2 else ifs, the reason why we don't use front to realign the robot is because it ends up with a weird angle after turning, so we use that LEFT na RIGHT to correct the turns
+  }
+    else {  //Here the large if finishes and ends up with this going front, which is the default settin for movement
+    Serial.println("ADELANTE");
+    go_Advance(SPEED);
+    delay(forwardtime);    
+  }
+ }
+}
+//The final loop to do all the previous setup
+void loop() {
+  auto_avoidance();  //Everything prior mentioned
+}
