@@ -13,3 +13,6 @@ During our testing, we have noticed different pros and cons for each system. Ard
 
 There are two different codes for each one, which are portrayed throughout our commits as well as the design and the youtube videos. 
 We plan on sticking to one of them once we have conclusive results, but documentation has to made for both in case it is the final robot. We hope you enjoy our commits and they serve to explain how do our robots work. 
+
+As this paragraph is being currently getting written, during August 2nd, 2024, we used only Oreobot 1.75 for the regional competition, our plan was to
+switch robots because of the Lego colour sensor, but we had to take a decision and the version 1.75 was the only one that gave some visual results, so we used it. To be honest, it turned out it did way better than in the previous practices and made  1 and 3/4, of the entire track, which gave us 15 points, a lot more than what we expected. However, the colour part is still difficult to manage but we are working with our only colour sensor. We hope we classify to the National competition to get more chances to upgrade our robot and do better in the competition. Thanks for reading until this part :D
