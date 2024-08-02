@@ -1,3 +1,5 @@
+//Disclaimer, in these codes, the "f" in variables stands for front, "r" for right and "l" for left. 
+
 #include <PWMServo.h>
 
 // Motor pins definition
@@ -7,13 +9,13 @@
 #define ENB 6
 
 //Definitions of the angles
-#define FRONT 64.25
+#define FRONT 64.25  //Default Angle
 float SHARP_RIGHT = FRONT + 52.5;
-float SHARP_LEFT = FRONT - 47.5;
+float SHARP_LEFT = FRONT - 47.5;    //These two are for big turns
 int RIGHT = FRONT + 20;
-int LEFT = FRONT - 2.75;
+int LEFT = FRONT - 2.75;    //These ones are to correct the alineation after a big trun
 float TURNR = FRONT + 22  ;
-float TURNL = FRONT - 13;
+float TURNL = FRONT - 13;    //These ones are for the soft turn the robot makes when it only detects walls at the sides
 
 //Definition of the distance variables
 int echo_distancef;
@@ -22,7 +24,7 @@ int echo_distancel;
 
 //Definition of the steer and speed
 #define SPEED 185
-#define FAST_SPEED 255
+#define FAST_SPEED 255    //Speed settings for the motor
 #define SERVO_STEER 9
 #define SERVO_SENSOR 10
 
@@ -39,23 +41,20 @@ PWMServo head;
 PWMServo head_steer;
 
 //Distances and times
-const int distancelimit = 40;
-const int sidedistancelimit = 30;
 int distance;
-int numcycles = 0;
 const int forwardtime = 700;
 const int turntime = 750;
-const int backtime = 550;
+const int backtime = 550;    All of these times are the different actions of the robot, though we repead some of them for different actions.
 const int softurn = 1000;
 
 
 //Function for going back
 void go_Back(int speed) {
   digitalWrite(IN1, HIGH);
-  digitalWrite(IN2, LOW);
+  digitalWrite(IN2, LOW);        
   analogWrite(ENA, speed);
 }
-
+                                            //The IN1 is the back rotation while IN2 is the opposite
 //Function for going front
 void go_Advance(int speed) {
   digitalWrite(IN1, LOW);
@@ -66,7 +65,7 @@ void go_Advance(int speed) {
 
 //Function for making turns
 void turn(int angle) {
-  head_steer.write(angle);
+  head_steer.write(angle);    //This reads the angles previously declared
 }
 
 //Function for stopping
@@ -84,7 +83,7 @@ void setup() {
   pinMode(IN2, OUTPUT);
   pinMode(Trig_PINf, OUTPUT);
   pinMode(Echo_PINf, INPUT);
-  pinMode(Trig_PINr, OUTPUT);
+  pinMode(Trig_PINr, OUTPUT);        //The outputs are for sending info from the board to the sensor, while input for the oppoosite
   pinMode(Echo_PINr, INPUT);
   pinMode(Trig_PINl, OUTPUT);
   pinMode(Echo_PINl, INPUT);
@@ -93,7 +92,7 @@ void setup() {
 //initial status
   head_steer.attach(SERVO_STEER);
   turn(FRONT);
-  stop_Stop();
+  stop_Stop();    //Initial status for the robot
 
   delay(2000);
   
@@ -106,7 +105,7 @@ void setup() {
 long getDistance(int trigPin, int echoPin) {
   digitalWrite(trigPin, LOW);
   delayMicroseconds(5);
-  digitalWrite(trigPin, HIGH);
+  digitalWrite(trigPin, HIGH);    //This defines how all the ultrasonic sensors work, they begin off, send the signal with the HIGH and then low to process the information using a math formula
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
   long duration = pulseIn(echoPin, HIGH);
@@ -117,7 +116,7 @@ long getDistance(int trigPin, int echoPin) {
 //Defining the function for getting the distances
 void watch() {
   echo_distancef = getDistance(Trig_PINf, Echo_PINf);
-  echo_distancer = getDistance(Trig_PINr, Echo_PINr);
+  echo_distancer = getDistance(Trig_PINr, Echo_PINr);     //After declaring the usage of the ultrasonic sensors, then we declare the calculations and visible presentation of each one
   echo_distancel = getDistance(Trig_PINl, Echo_PINl);
 
   Serial.print("Front: ");
@@ -135,13 +134,13 @@ void auto_avoidance() {
   
   if (echo_distancef > 50 && echo_distancer >= 40  && echo_distancel >= 40 ) {
     Serial.println("ADELANTE");
-    turn(FRONT);
+    turn(FRONT);    //If there is nothing in the assigned distance, the robot will advance
     go_Advance(FAST_SPEED);
   } else if (echo_distancef < 50 && echo_distancel > echo_distancer) {  
     Serial.println("Girar a la izquierda");
     go_Back(SPEED);
     delay(backtime);
-    turn(SHARP_LEFT);
+    turn(SHARP_LEFT);    //If something is close, and the left distance is higher, the robot will take distance by moving back and then turning left
     go_Advance(FAST_SPEED);
     delay(turntime);
     stop_Stop();
@@ -150,7 +149,7 @@ void auto_avoidance() {
     Serial.println("Girar a la derecha");
     go_Back(SPEED);
     delay(turntime);
-    turn(SHARP_RIGHT);
+    turn(SHARP_RIGHT);         //If something is close, and the right distance is higher, the robot will take distance by moving back and then turning right
     go_Advance(FAST_SPEED);
     delay(turntime);
     turn(LEFT);
@@ -158,7 +157,7 @@ void auto_avoidance() {
     Serial.println("Atras");
     stop_Stop();
     go_Back(SPEED);
-    delay(backtime);
+    delay(backtime);    //If only the frontal distance is less than 50, then go back (we don't really use this one but just in case
     turn(SHARP_LEFT);
     go_Advance(FAST_SPEED);
     delay (turntime);
@@ -168,25 +167,25 @@ void auto_avoidance() {
     Serial.println("Atras");
     turn(TURNL );
     go_Advance(FAST_SPEED);
-    delay (backtime + 100);
+    delay (backtime + 100);    //If it is getting near the right side, it will turn slightly left to avoid the wall.
     turn(FRONT + 14.7);
 
     }
     else if (echo_distancef > 50 && echo_distancel < 12.5) {
     Serial.println("Atras");
     turn(TURNR);
-    go_Advance(FAST_SPEED);
+    go_Advance(FAST_SPEED);     //If it is getting near the left side, it will turn slightly right to avoid the wall.
     delay (backtime + 100);
     turn(FRONT);
     
   } else {
-    Serial.println("ADELANTE");
+    Serial.println("ADELANTE");    //If nothing of this happens, then the robot will just advance
     go_Advance(SPEED);
     delay(forwardtime);
   }
 }
 
 //The final loop to do all the previous setup
-void loop() {
+void loop() {            
   auto_avoidance();
 }
